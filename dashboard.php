@@ -7,10 +7,24 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// Obtener sitios del usuario
+// Obtener información del usuario y sus sitios
+$stmt = $pdo->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->execute([$_SESSION['user_id']]);
+$user = $stmt->fetch();
+
 $stmt = $pdo->prepare("SELECT * FROM sites WHERE user_id = ? ORDER BY created_at DESC");
 $stmt->execute([$_SESSION['user_id']]);
 $sites = $stmt->fetchAll();
+
+// Definir límites según el plan
+$plan_limits = [
+    'basic' => ['sites' => 2, 'name' => 'Básico', 'price' => 'S/ 5'],
+    'professional' => ['sites' => 5, 'name' => 'Profesional', 'price' => 'S/ 10']
+];
+
+$current_plan = $plan_limits[$user['plan']] ?? $plan_limits['basic'];
+$sites_used = count($sites);
+$sites_remaining = max(0, $current_plan['sites'] - $sites_used);
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -40,6 +54,20 @@ $sites = $stmt->fetchAll();
     </header>
 
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Plan Info -->
+        <div class="bg-white rounded-lg shadow mb-8 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-xl font-semibold text-gray-900">Plan Actual: <?php echo $current_plan['name']; ?></h2>
+                    <p class="text-gray-600"><?php echo $current_plan['price']; ?>/mes</p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-gray-600">Sitios utilizados</p>
+                    <p class="text-2xl font-bold text-blue-600"><?php echo $sites_used; ?>/<?php echo $current_plan['sites']; ?></p>
+                </div>
+            </div>
+        </div>
+
         <!-- Stats Cards -->
         <div class="grid md:grid-cols-3 gap-6 mb-8">
             <div class="bg-white p-6 rounded-lg shadow">
@@ -48,7 +76,7 @@ $sites = $stmt->fetchAll();
                         <i class="fas fa-globe text-blue-600 text-xl"></i>
                     </div>
                     <div class="ml-4">
-                        <h3 class="text-lg font-semibold text-gray-900"><?php echo count($sites); ?></h3>
+                        <h3 class="text-lg font-semibold text-gray-900"><?php echo $sites_used; ?></h3>
                         <p class="text-gray-600">Sitios Activos</p>
                     </div>
                 </div>
@@ -69,11 +97,11 @@ $sites = $stmt->fetchAll();
             <div class="bg-white p-6 rounded-lg shadow">
                 <div class="flex items-center">
                     <div class="bg-purple-100 p-3 rounded-full">
-                        <i class="fas fa-hdd text-purple-600 text-xl"></i>
+                        <i class="fas fa-plus text-purple-600 text-xl"></i>
                     </div>
                     <div class="ml-4">
-                        <h3 class="text-lg font-semibold text-gray-900">1GB</h3>
-                        <p class="text-gray-600">Almacenamiento</p>
+                        <h3 class="text-lg font-semibold text-gray-900"><?php echo $sites_remaining; ?></h3>
+                        <p class="text-gray-600">Sitios Disponibles</p>
                     </div>
                 </div>
             </div>
@@ -83,9 +111,15 @@ $sites = $stmt->fetchAll();
         <div class="bg-white rounded-lg shadow">
             <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
                 <h2 class="text-xl font-semibold text-gray-900">Mis Sitios Web</h2>
-                <a href="upload.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                    <i class="fas fa-plus mr-2"></i>Nuevo Sitio
-                </a>
+                <?php if ($sites_remaining > 0): ?>
+                    <a href="upload.php" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
+                        <i class="fas fa-plus mr-2"></i>Nuevo Sitio
+                    </a>
+                <?php else: ?>
+                    <span class="bg-gray-400 text-white px-4 py-2 rounded-md cursor-not-allowed">
+                        <i class="fas fa-plus mr-2"></i>Límite Alcanzado
+                    </span>
+                <?php endif; ?>
             </div>
             
             <div class="p-6">
@@ -94,9 +128,13 @@ $sites = $stmt->fetchAll();
                         <i class="fas fa-globe text-gray-400 text-6xl mb-4"></i>
                         <h3 class="text-xl font-semibold text-gray-900 mb-2">No tienes sitios web aún</h3>
                         <p class="text-gray-600 mb-6">Sube tu primer sitio web estático y comienza a compartirlo con el mundo</p>
-                        <a href="upload.php" class="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700">
-                            Subir mi primer sitio
-                        </a>
+                        <?php if ($sites_remaining > 0): ?>
+                            <a href="upload.php" class="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700">
+                                Subir mi primer sitio
+                            </a>
+                        <?php else: ?>
+                            <p class="text-red-600 font-semibold">Has alcanzado el límite de sitios para tu plan actual</p>
+                        <?php endif; ?>
                     </div>
                 <?php else: ?>
                     <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -71,7 +71,7 @@ session_start();
                         <i class="fas fa-dollar-sign text-2xl text-blue-600"></i>
                     </div>
                     <h3 class="text-xl font-semibold mb-4">Precios Accesibles</h3>
-                    <p class="text-gray-600">Planes desde $5 USD/mes. Sin costos ocultos, sin sorpresas en tu factura.</p>
+                    <p class="text-gray-600">Planes desde 5 soles/mes. Sin costos ocultos, sin sorpresas en tu factura.</p>
                 </div>
                 
                 <div class="bg-white p-8 rounded-lg shadow-lg text-center">
