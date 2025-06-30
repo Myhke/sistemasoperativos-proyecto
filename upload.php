@@ -186,6 +186,11 @@ function createNginxConfig($domain, $site_uuid, $config) {
     root {$site_path};
     index index.html index.htm;
 
+    # Verificar que el dominio coincida exactamente
+    if (\$host != '{$domain}') {
+        return 403 'Dominio no autorizado';
+    }
+
     # Configuración de seguridad
     location / {
         try_files \$uri \$uri/ =404;
