@@ -422,7 +422,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 
                 break;
                 
-            case 'delete_site':
+            case 'download_site':
                 // Obtener UUID del sitio
                 $site_uuid = basename(parse_url($site['url'], PHP_URL_PATH));
                 if (empty($site_uuid)) {
@@ -436,23 +436,60 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     }
                 }
                 
-                // Eliminar configuración de Nginx
-                if (!empty($site_uuid)) {
-                    removeNginxConfig($site_uuid, $server_config);
+                if (empty($site_uuid)) {
+                    throw new Exception("No se pudo determinar el directorio del sitio");
+                }
+                
+                $site_path = $server_config['web_root'] . '/' . $site_uuid;
+                
+                if (!is_dir($site_path)) {
+                    throw new Exception("El directorio del sitio no existe");
+                }
+                
+                // Crear archivo ZIP temporal
+                $temp_zip = sys_get_temp_dir() . '/download_' . $site_uuid . '_' . time() . '.zip';
+                $zip = new ZipArchive();
+                
+                if ($zip->open($temp_zip, ZipArchive::CREATE) !== TRUE) {
+                    throw new Exception("Error al crear archivo ZIP");
+                }
+                
+                // Agregar archivos al ZIP
+                $iterator = new RecursiveIteratorIterator(
+                    new RecursiveDirectoryIterator($site_path, RecursiveDirectoryIterator::SKIP_DOTS),
+                    RecursiveIteratorIterator::SELF_FIRST
+                );
+                
+                foreach ($iterator as $file) {
+                    $file_path = $file->getRealPath();
+                    $relative_path = substr($file_path, strlen($site_path) + 1);
                     
-                    // Eliminar directorio del sitio
-                    $site_path = $server_config['web_root'] . '/' . $site_uuid;
-                    if (is_dir($site_path)) {
-                        exec("rm -rf " . escapeshellarg($site_path));
+                    if ($file->isDir()) {
+                        $zip->addEmptyDir($relative_path);
+                    } else {
+                        $zip->addFile($file_path, $relative_path);
                     }
                 }
                 
-                // Eliminar registros de la base de datos (uploads se eliminan automáticamente por CASCADE)
-                $stmt = $pdo->prepare("DELETE FROM sites WHERE id = ?");
-                $stmt->execute([$site_id]);
+                $zip->close();
                 
-                $_SESSION['success'] = "Sitio eliminado exitosamente";
-                header('Location: dashboard.php');
+                // Verificar que el archivo se creó correctamente
+                if (!file_exists($temp_zip)) {
+                    throw new Exception("Error al generar el archivo ZIP");
+                }
+                
+                // Configurar headers para descarga
+                $download_name = preg_replace('/[^a-zA-Z0-9_-]/', '_', $site['name']) . '_' . date('Y-m-d_H-i-s') . '.zip';
+                
+                header('Content-Type: application/zip');
+                header('Content-Disposition: attachment; filename="' . $download_name . '"');
+                header('Content-Length: ' . filesize($temp_zip));
+                header('Cache-Control: no-cache, must-revalidate');
+                header('Pragma: no-cache');
+                
+                // Enviar archivo y limpiar
+                readfile($temp_zip);
+                unlink($temp_zip);
                 exit;
                 
             default:
@@ -750,6 +787,15 @@ function formatBytes($size, $precision = 2) {
                            class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 text-center block">
                             <i class="fas fa-external-link-alt mr-2"></i>Ver Sitio
                         </a>
+                        
+                        <!-- Descargar proyecto -->
+                        <form method="POST" class="w-full">
+                            <input type="hidden" name="action" value="download_site">
+                            <button type="submit" 
+                                    class="w-full bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700">
+                                <i class="fas fa-download mr-2"></i>Descargar Proyecto
+                            </button>
+                        </form>
                         
                         <!-- Activar/Desactivar -->
                         <form method="POST" class="w-full">
